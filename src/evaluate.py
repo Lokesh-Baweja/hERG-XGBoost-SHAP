@@ -12,11 +12,9 @@ def evaluate_models(rf_model, xgb_model, X_test, y_test):
 
     print(f"RF AUC: {rf_auc:.4f}")
     print(f"XGB AUC: {xgb_auc:.4f}")
-    print(f"Ensemble AUC: {ensemble_auc:.4f}")
 
     return {
         "rf_auc": rf_auc,
         "xgb_auc": xgb_auc,
-        "ensemble_auc": ensemble_auc
     }
 

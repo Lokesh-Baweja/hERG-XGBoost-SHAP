@@ -1,7 +1,15 @@
+import os
 import joblib
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
+
+# Step 1: Dynamically find the project root
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+model_dir = os.path.join(project_root, "models")
+
+# Step 2: Create the models directory if it doesn't exist
+os.makedirs(model_dir, exist_ok=True)
 
 def train_models(X_train, y_train):
     rf = RandomForestClassifier(random_state=42)
@@ -37,13 +45,14 @@ def train_models(X_train, y_train):
     xgb_best = grid_xgb.best_estimator_
     print("Best XGB Parameters:", grid_xgb.best_params_)
 
-    # Save models
-    joblib.dump(rf_best, "models/rf_best_model.pkl")
-    joblib.dump(xgb_best, "models/xgb_best_model.pkl")
+    # Save models using absolute paths
+    joblib.dump(rf_best, os.path.join(model_dir, "rf_best_model.pkl"))
+    joblib.dump(xgb_best, os.path.join(model_dir, "xgb_best_model.pkl"))
 
     # Save hyperparameters
-    with open("models/best_hyperparameters.txt", "w") as f:
+    with open(os.path.join(model_dir, "best_hyperparameters.txt"), "w") as f:
         f.write(f"Best RF Parameters: {grid_rf.best_params_}\n")
         f.write(f"Best XGB Parameters: {grid_xgb.best_params_}\n")
 
     return rf_best, xgb_best
+

@@ -129,3 +129,72 @@ def draw_molecule_with_shap_highlights1(molecule, shap_values_array, maccs_featu
     drawer.FinishDrawing()
     return drawer.GetDrawingText()
 
+
+
+def draw_molecule_with_shap_highlights2(molecule, shap_values_array, maccs_features, top_n=10):
+    """
+    Highlight substructures on molecule corresponding to top_n MACCS fingerprint features
+    with SHAP values > 0 and active bits (1).
+    
+    Parameters:
+    - molecule: RDKit Mol object
+    - shap_values_array: numpy array of SHAP values for each feature
+    - maccs_features: numpy array or list of MACCS fingerprint bits (0/1)
+    - top_n: number of top features to highlight
+    
+    Returns:
+    - img_bytes: PNG image bytes
+    """
+    MACCSsmartsPatts = MACCSkeys.smartsPatts  # tuple of (SMARTS,) strings
+
+    # --- Filter features: SHAP > 0 and bit is set (1)
+    valid_mask = (shap_values_array > 0) & (np.array(maccs_features) == 1)
+    valid_indices = np.where(valid_mask)[0]
+    valid_shap_values = shap_values_array[valid_indices]
+
+    # --- Sort and select top N
+    sorted_idx = valid_indices[np.argsort(valid_shap_values)[::-1]]
+    top_n_idx = sorted_idx[:top_n]
+
+    highlight_atoms = []
+    highlight_bonds = []
+    highlight_colors = {}
+
+    for feature in top_n_idx:
+        smarts = MACCSsmartsPatts[feature][0]  # access SMARTS string from tuple
+        substructure = Chem.MolFromSmarts(smarts)
+        if substructure:
+            match = molecule.GetSubstructMatch(substructure)
+            if not match:
+                continue
+            # Highlight atoms
+            highlight_atoms.extend(match)
+            for atom in match:
+                highlight_colors[atom] = (1.0, 0.6, 0.6)  # red for positive SHAP
+
+            # Highlight bonds involving the matched atoms
+            for bond in molecule.GetBonds():
+                begin = bond.GetBeginAtomIdx()
+                end = bond.GetEndAtomIdx()
+                if begin in match and end in match:
+                    highlight_bonds.append(bond.GetIdx())
+                    highlight_colors[bond.GetIdx()] = (1.0, 0.6, 0.6)
+
+    # Remove duplicates
+    highlight_atoms = list(set(highlight_atoms))
+    highlight_bonds = list(set(highlight_bonds))
+
+    # --- Draw molecule
+    drawer = rdMolDraw2D.MolDraw2DCairo(500, 500)
+    drawer.drawOptions().useBWAtomPalette()
+    rdMolDraw2D.PrepareAndDrawMolecule(
+        drawer,
+        molecule,
+        highlightAtoms=highlight_atoms,
+        highlightBonds=highlight_bonds,
+        highlightAtomColors=highlight_colors,
+        highlightBondColors=highlight_colors
+    )
+    drawer.FinishDrawing()
+    return drawer.GetDrawingText()
+

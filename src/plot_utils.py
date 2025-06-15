@@ -80,4 +80,52 @@ def draw_molecule_with_shap_highlights(molecule, shap_values_array, maccs_featur
     highlight_atoms = list(set(highlight_atoms))
     # highlight_bonds = list(set(highlight_bonds))
 
+def draw_molecule_with_shap_highlights1(molecule, shap_values_array, maccs_features, top_n=10):
+    """
+    Highlight substructures on molecule corresponding to top_n MACCS fingerprint features
+    with SHAP values > 0 and feature presence = 1.
+    
+    Parameters:
+    - molecule: RDKit Mol object
+    - shap_values_array: numpy array of SHAP values for each feature
+    - maccs_features: numpy array of MACCS fingerprint bits (0/1)
+    - top_n: number of top features to highlight
+    
+    Returns:
+    - img: PNG image bytes
+    """
+    MACCSsmartsPatts = MACCSkeys.smartsPatts  # tuple of SMARTS strings (length 167)
+
+    # --- Filter features: SHAP > 0 and bit is set (1)
+    valid_mask = (shap_values_array > 0) & (maccs_features == 1)
+    valid_indices = np.where(valid_mask)[0]
+    valid_shap_values = shap_values_array[valid_indices]
+
+    # --- Sort valid SHAP values in descending order
+    sorted_idx = valid_indices[np.argsort(valid_shap_values)[::-1]]
+    top_n_idx = sorted_idx[:top_n]
+
+    highlight_atoms = []
+    highlight_colors = {}
+
+    for feature_idx in top_n_idx:
+        smarts = MACCSsmartsPatts[feature_idx]
+        if smarts:
+            substructure = Chem.MolFromSmarts(smarts)
+            if substructure:
+                match = molecule.GetSubstructMatch(substructure)
+                if match:
+                    color = (1.0, 0.6, 0.6)  # red for positive SHAP
+                    highlight_atoms.extend(match)
+                    for atom in match:
+                        highlight_colors[atom] = color
+
+    # Remove duplicates
+    highlight_atoms = list(set(highlight_atoms))
+
+    # --- Draw the molecule with highlights
+    drawer = rdMolDraw2D.MolDraw2DCairo(400, 300)
+    drawer.DrawMolecule(molecule, highlightAtoms=highlight_atoms, highlightAtomColors=highlight_colors)
+    drawer.FinishDrawing()
+    return drawer.GetDrawingText()
 

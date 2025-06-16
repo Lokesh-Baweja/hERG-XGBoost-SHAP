@@ -2,6 +2,19 @@ import numpy as np
 from rdkit import Chem
 from rdkit.Chem import MACCSkeys
 from rdkit.Chem.Draw import rdMolDraw2D
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Only add a handler if one doesn't exist to prevent duplicate logs in Jupyter
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
 
 def highlight_top_maccs_features(mol, shap_values, feature_names, top_n=10):
     if mol is None:
@@ -107,8 +120,8 @@ def draw_molecule_with_shap_highlights1(molecule, shap_values_array, maccs_featu
 
     highlight_atoms = []
     highlight_colors = {}
-
     for feature_idx in top_n_idx:
+        print (feature_idx)
         smarts = MACCSsmartsPatts[feature_idx]
         if smarts:
             substructure = Chem.MolFromSmarts(smarts)
@@ -136,12 +149,6 @@ def draw_molecule_with_shap_highlights2(molecule, shap_values_array, maccs_featu
     Highlight substructures on molecule corresponding to top_n MACCS fingerprint features
     with SHAP values > 0 and active bits (1).
     
-    Parameters:
-    - molecule: RDKit Mol object
-    - shap_values_array: numpy array of SHAP values for each feature
-    - maccs_features: numpy array or list of MACCS fingerprint bits (0/1)
-    - top_n: number of top features to highlight
-    
     Returns:
     - img_bytes: PNG image bytes
     """
@@ -152,27 +159,32 @@ def draw_molecule_with_shap_highlights2(molecule, shap_values_array, maccs_featu
     valid_indices = np.where(valid_mask)[0]
     valid_shap_values = shap_values_array[valid_indices]
 
+    logger.debug(f"Valid indices with SHAP > 0 and MACCS bit=1: {valid_indices}")
+    logger.debug(f"Corresponding SHAP values: {valid_shap_values}")
+
     # --- Sort and select top N
     sorted_idx = valid_indices[np.argsort(valid_shap_values)[::-1]]
     top_n_idx = sorted_idx[:top_n]
+
+    logger.debug(f"Top {top_n} feature indices: {top_n_idx}")
 
     highlight_atoms = []
     highlight_bonds = []
     highlight_colors = {}
 
     for feature in top_n_idx:
-        smarts = MACCSsmartsPatts[feature][0]  # access SMARTS string from tuple
+        smarts = MACCSsmartsPatts[feature][0]
+        logger.debug(f"Feature {feature} SMARTS: {smarts}")
         substructure = Chem.MolFromSmarts(smarts)
         if substructure:
             match = molecule.GetSubstructMatch(substructure)
+            logger.debug(f"Match for feature {feature}: {match}")
             if not match:
                 continue
-            # Highlight atoms
             highlight_atoms.extend(match)
             for atom in match:
-                highlight_colors[atom] = (1.0, 0.6, 0.6)  # red for positive SHAP
+                highlight_colors[atom] = (1.0, 0.6, 0.6)
 
-            # Highlight bonds involving the matched atoms
             for bond in molecule.GetBonds():
                 begin = bond.GetBeginAtomIdx()
                 end = bond.GetEndAtomIdx()
@@ -180,11 +192,13 @@ def draw_molecule_with_shap_highlights2(molecule, shap_values_array, maccs_featu
                     highlight_bonds.append(bond.GetIdx())
                     highlight_colors[bond.GetIdx()] = (1.0, 0.6, 0.6)
 
-    # Remove duplicates
     highlight_atoms = list(set(highlight_atoms))
     highlight_bonds = list(set(highlight_bonds))
 
-    # --- Draw molecule
+    logger.debug(f"Highlight atoms: {highlight_atoms}")
+    logger.debug(f"Highlight bonds: {highlight_bonds}")
+    logger.debug(f"Highlight colors: {highlight_colors}")
+
     drawer = rdMolDraw2D.MolDraw2DCairo(500, 500)
     drawer.drawOptions().useBWAtomPalette()
     rdMolDraw2D.PrepareAndDrawMolecule(

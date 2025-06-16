@@ -43,7 +43,7 @@ def plot_waterfall_shap1(model, instance_array, background_df, feature_names):
     top_n = min(10, len(sorted_idx))
     top_feats = filtered_names[sorted_idx[:top_n]]
     top_vals = filtered_shap[sorted_idx[:top_n]]
-
+    top_feat_numbers = [int(f.split("_")[1]) for f in top_feats]
     # Print results
     print(f"Top {top_n} SHAP-positive features with bit = 1:")
     for f, v in zip(top_feats, top_vals):
@@ -51,4 +51,8 @@ def plot_waterfall_shap1(model, instance_array, background_df, feature_names):
 
     # --- Plot full SHAP waterfall
     #shap.plots.waterfall(shap_values[0], max_display=10)
-    return shap_values_array
+    return {
+    "shap_values_array": shap_values_array,
+    "sorted_idx": sorted_idx,
+    "top_features": top_feat_numbers,
+    }

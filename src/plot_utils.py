@@ -144,7 +144,7 @@ def draw_molecule_with_shap_highlights1(molecule, shap_values_array, maccs_featu
 
 
 
-def draw_molecule_with_shap_highlights2(molecule, shap_values_array, maccs_features, top_n=10, top_n_idx):
+def draw_molecule_with_shap_highlights2(molecule, shap_values_array, maccs_features, top_n_idx, top_n=10):
     """
     Highlight substructures on molecule corresponding to top_n MACCS fingerprint features
     with SHAP values > 0 and active bits (1).

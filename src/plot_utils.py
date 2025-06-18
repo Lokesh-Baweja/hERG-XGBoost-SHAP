@@ -144,7 +144,7 @@ def draw_molecule_with_shap_highlights1(molecule, shap_values_array, maccs_featu
 
 
 
-def draw_molecule_with_shap_highlights2(molecule, shap_values_array, maccs_features, top_n=10):
+def draw_molecule_with_shap_highlights2(molecule, shap_values_array, maccs_features, top_n=10, top_n_idx):
     """
     Highlight substructures on molecule corresponding to top_n MACCS fingerprint features
     with SHAP values > 0 and active bits (1).
@@ -154,19 +154,6 @@ def draw_molecule_with_shap_highlights2(molecule, shap_values_array, maccs_featu
     """
     MACCSsmartsPatts = MACCSkeys.smartsPatts  # tuple of (SMARTS,) strings
 
-    # --- Filter features: SHAP > 0 and bit is set (1)
-    valid_mask = (shap_values_array > 0) & (np.array(maccs_features) == 1)
-    valid_indices = np.where(valid_mask)[0]
-    valid_shap_values = shap_values_array[valid_indices]
-
-    logger.debug(f"Valid indices with SHAP > 0 and MACCS bit=1: {valid_indices}")
-    logger.debug(f"Corresponding SHAP values: {valid_shap_values}")
-
-    # --- Sort and select top N
-    sorted_idx = valid_indices[np.argsort(valid_shap_values)[::-1]]
-    top_n_idx = sorted_idx[:top_n]
-
-    logger.debug(f"Top {top_n} feature indices: {top_n_idx}")
 
     highlight_atoms = []
     highlight_bonds = []

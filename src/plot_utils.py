@@ -1,6 +1,7 @@
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem import MACCSkeys
+from rdkit.Chem import AllChem
 from rdkit.Chem.Draw import rdMolDraw2D
 import logging
 
@@ -199,3 +200,170 @@ def draw_molecule_with_shap_highlights2(molecule, shap_values_array, maccs_featu
     drawer.FinishDrawing()
     return drawer.GetDrawingText()
 
+
+
+
+def draw_single_maccs_feature(mol, atom_indices, color=(1.0, 0.2, 0.2)):
+    drawer = rdMolDraw2D.MolDraw2DCairo(300, 300)
+    drawer.drawOptions().highlightRadius = 0.6
+    drawer.drawOptions().fillHighlights = False
+    drawer.DrawMolecule(
+        mol,
+        highlightAtoms=atom_indices,
+        highlightAtomColors={idx: color for idx in atom_indices}
+    )
+    drawer.FinishDrawing()
+    png = drawer.GetDrawingText()
+    return Image.open(BytesIO(png))
+
+def draw_molecule_with_shap_highlights3(molecule, shap_values_array, maccs_features, top_n=10, n_cols=5):
+    """
+    Draws a grid of 2D molecule images, each highlighting one of the top_n MACCS features with highest SHAP values.
+    
+    Parameters:
+    - molecule: RDKit Mol object
+    - shap_values_array: Array of SHAP values corresponding to MACCS features
+    - maccs_features: Binary MACCS array (1 for active, 0 for inactive)
+    - top_n: Number of top features to highlight (default = 10)
+    - n_cols: Number of columns in the subplot grid
+    
+    Returns:
+    - Displays a matplotlib grid of highlighted molecules
+    """
+    AllChem.Compute2DCoords(molecule)
+    MACCSsmartsPatts = smartsPatts
+
+    # Step 1: filter for valid SHAP > 0 and bit is 1
+    valid_indices = [
+        idx for idx in range(len(shap_values_array))
+        if shap_values_array[idx] > 0 and maccs_features[idx] == 1
+    ]
+
+    if not valid_indices:
+        print("No valid features with SHAP > 0 and fingerprint bit == 1")
+        return
+
+    # Step 2: sort and select top_n
+    sorted_idx = sorted(valid_indices, key=lambda i: shap_values_array[i], reverse=True)[:top_n]
+
+    # Step 3: prepare colors
+    cmap = plt.get_cmap("YlOrRd")
+    norm = plt.Normalize(vmin=0, vmax=len(sorted_idx) - 1)
+
+    images, titles = [], []
+
+    for rank, idx in enumerate(sorted_idx):
+        smarts = MACCSsmartsPatts[idx][0]
+        patt = Chem.MolFromSmarts(smarts)
+        if not patt:
+            continue
+
+        matches = molecule.GetSubstructMatches(patt)
+        if not matches:
+            continue
+
+        atom_indices = list(matches[0])  # Show first match only
+        color = cmap(norm(rank))[:3]     # RGB color
+
+        img = draw_single_maccs_feature(molecule, atom_indices, color=color)
+        images.append(img)
+        titles.append(f"MACCS {idx}, SHAP: {shap_values_array[idx]:.2f}")
+
+    # Step 4: Plot grid
+    n = len(images)
+    n_cols = min(n_cols, n)
+    n_rows = (n + n_cols - 1) // n_cols
+
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(3 * n_cols, 3 * n_rows))
+    axs = axs.flatten()
+
+    for ax in axs[n:]:
+        ax.axis('off')
+
+    for ax, img, title in zip(axs, images, titles):
+        ax.imshow(img)
+        ax.set_title(title, fontsize=9)
+        ax.axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+
+    from rdkit import Chem
+from rdkit.Chem import AllChem, MACCSkeys
+from rdkit.Chem.Draw import rdMolDraw2D
+from matplotlib import pyplot as plt
+import numpy as np
+from io import BytesIO
+
+def draw_molecule_with_shap_highlights4(molecule, shap_values_array, maccs_features, top_n_idx, top_n=10):
+    """
+    Highlights the top_n MACCS fingerprint substructures on the molecule,
+    colored by SHAP importance (brightest = highest SHAP).
+    
+    Parameters:
+    - molecule: RDKit Mol object
+    - shap_values_array: Array of SHAP values (same length as MACCS bits)
+    - maccs_features: Binary MACCS fingerprint (1 = bit on)
+    - top_n_idx: Indices of top N MACCS features sorted by SHAP (descending)
+    - top_n: Number of top features to highlight
+    
+    Returns:
+    - img_bytes: PNG image bytes
+    """
+    AllChem.Compute2DCoords(molecule)
+    MACCSsmartsPatts = MACCSkeys.smartsPatts
+
+    cmap = plt.get_cmap("viridis")
+    norm = plt.Normalize(vmin=0, vmax=max(top_n - 1, 1))  # avoid divide-by-zero
+
+    highlight_atoms = []
+    highlight_bonds = []
+    highlight_atom_colors = {}
+    highlight_bond_colors = {}
+
+    for rank, feature in enumerate(top_n_idx[:top_n]):
+        if shap_values_array[feature] <= 0 or maccs_features[feature] == 0:
+            continue
+
+        smarts = MACCSsmartsPatts[feature][0]
+        substructure = Chem.MolFromSmarts(smarts)
+        if not substructure:
+            continue
+
+        matches = molecule.GetSubstructMatches(substructure)
+        if not matches:
+            continue
+
+        color = cmap(norm(rank))[:3]  # RGB
+
+        for match in matches:
+            highlight_atoms.extend(match)
+            for atom in match:
+                highlight_atom_colors[atom] = color
+
+            for bond in molecule.GetBonds():
+                a1, a2 = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
+                if a1 in match and a2 in match:
+                    highlight_bonds.append(bond.GetIdx())
+                    highlight_bond_colors[bond.GetIdx()] = color
+
+    # Remove duplicates
+    highlight_atoms = list(set(highlight_atoms))
+    highlight_bonds = list(set(highlight_bonds))
+
+    drawer = rdMolDraw2D.MolDraw2DCairo(500, 500)
+    drawer.drawOptions().useBWAtomPalette()
+    drawer.drawOptions().highlightRadius = 0.6
+    drawer.drawOptions().fillHighlights = False
+
+    rdMolDraw2D.PrepareAndDrawMolecule(
+        drawer,
+        molecule,
+        highlightAtoms=highlight_atoms,
+        highlightAtomColors=highlight_atom_colors,
+        highlightBonds=highlight_bonds,
+        highlightBondColors=highlight_bond_colors
+    )
+    drawer.FinishDrawing()
+    return drawer.GetDrawingText()

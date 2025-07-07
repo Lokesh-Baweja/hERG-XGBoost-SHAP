@@ -145,7 +145,7 @@ def draw_molecule_with_shap_highlights1(molecule, shap_values_array, maccs_featu
 
 
 
-def draw_molecule_with_shap_highlights2(molecule, shap_values_array, maccs_features, top_n_idx, top_n=10):
+def draw_molecule_with_shap_highlights2(molecule, shap_values_array, maccs_features, top_n_idx, top_n=5):
     """
     Highlight substructures on molecule corresponding to top_n MACCS fingerprint features
     with SHAP values > 0 and active bits (1).
@@ -289,7 +289,7 @@ def draw_molecule_with_shap_highlights3(molecule, shap_values_array, maccs_featu
     plt.show()
 
 
-    from rdkit import Chem
+from rdkit import Chem
 from rdkit.Chem import AllChem, MACCSkeys
 from rdkit.Chem.Draw import rdMolDraw2D
 from matplotlib import pyplot as plt
@@ -367,3 +367,196 @@ def draw_molecule_with_shap_highlights4(molecule, shap_values_array, maccs_featu
     )
     drawer.FinishDrawing()
     return drawer.GetDrawingText()
+
+
+
+def draw_molecule_with_shap_highlights6(molecule, shap_values_array, maccs_features, top_n_idx, top_n=5):
+    """
+    Highlight substructures on molecule corresponding to top_n MACCS fingerprint features
+    with SHAP values > 0 and active bits (1), using color intensity proportional to SHAP contribution.
+    Intensity is scaled between 0.1 and 0.75.
+
+    Returns:
+    - img_bytes: PNG image bytes
+    """
+    MACCSsmartsPatts = MACCSkeys.smartsPatts
+
+    highlight_atoms = []
+    highlight_bonds = []
+    highlight_colors = {}
+
+    # Normalize SHAP values of the selected top features
+    top_shap_values = shap_values_array[top_n_idx]
+    min_shap = top_shap_values.min()
+    max_shap = top_shap_values.max()
+    range_shap = max_shap - min_shap if max_shap != min_shap else 1.0
+
+    # Scale SHAP values to [0.1, 0.75] for color intensity
+    def get_intensity(value):
+        norm = (value - min_shap) / range_shap
+        return 0.1 + 0.65 * norm  # scales to [0.1, 0.75]
+
+    for feature in top_n_idx:
+        smarts = MACCSsmartsPatts[feature][0]
+        substructure = Chem.MolFromSmarts(smarts)
+        if substructure:
+            match = molecule.GetSubstructMatch(substructure)
+            if not match:
+                continue
+
+            intensity = get_intensity(shap_values_array[feature])
+            color = (intensity, 0.3, 0.3)  # red base with scaled intensity
+
+            highlight_atoms.extend(match)
+            for atom in match:
+                highlight_colors[atom] = color
+
+            for bond in molecule.GetBonds():
+                begin = bond.GetBeginAtomIdx()
+                end = bond.GetEndAtomIdx()
+                if begin in match and end in match:
+                    idx = bond.GetIdx()
+                    highlight_bonds.append(idx)
+                    highlight_colors[idx] = color
+
+    highlight_atoms = list(set(highlight_atoms))
+    highlight_bonds = list(set(highlight_bonds))
+
+    drawer = rdMolDraw2D.MolDraw2DCairo(500, 500)
+    drawer.drawOptions().useBWAtomPalette()
+    rdMolDraw2D.PrepareAndDrawMolecule(
+        drawer,
+        molecule,
+        highlightAtoms=highlight_atoms,
+        highlightBonds=highlight_bonds,
+        highlightAtomColors=highlight_colors,
+        highlightBondColors=highlight_colors
+    )
+    drawer.FinishDrawing()
+    return drawer.GetDrawingText()
+
+
+def draw_molecule_with_shap_highlights7(molecule, shap_values_array, maccs_features, top_n_idx, top_n=5):
+    """
+    Highlight substructures on molecule corresponding to top_n MACCS fingerprint features
+    with SHAP values > 0 and active bits (1), using red intensity proportional to SHAP value.
+    
+    Returns:
+    - img_bytes: PNG image bytes
+    """
+    MACCSsmartsPatts = MACCSkeys.smartsPatts
+
+    highlight_atoms = []
+    highlight_bonds = []
+    highlight_colors = {}
+
+    # Normalize SHAP values of selected top features
+    top_shap_values = shap_values_array[top_n_idx]
+    min_shap = top_shap_values.min()
+    max_shap = top_shap_values.max()
+    range_shap = max_shap - min_shap if max_shap != min_shap else 1.0
+
+    # Scale SHAP values to [0.1, 0.75] for red color intensity
+    def get_intensity(value):
+        norm = (value - min_shap) / range_shap
+        return 0.1 + 0.65 * norm  # range [0.1, 0.75]
+
+    for feature in top_n_idx:
+        smarts = MACCSsmartsPatts[feature][0]
+        substructure = Chem.MolFromSmarts(smarts)
+        if substructure:
+            match = molecule.GetSubstructMatch(substructure)
+            if not match:
+                continue
+
+            intensity = get_intensity(shap_values_array[feature])
+            # Red shade: full red channel, reduced green/blue for stronger red
+            color = (intensity, 0.3 * intensity, 0.3 * intensity)
+
+            highlight_atoms.extend(match)
+            for atom in match:
+                highlight_colors[atom] = color
+
+            for bond in molecule.GetBonds():
+                begin = bond.GetBeginAtomIdx()
+                end = bond.GetEndAtomIdx()
+                if begin in match and end in match:
+                    idx = bond.GetIdx()
+                    highlight_bonds.append(idx)
+                    highlight_colors[idx] = color
+
+    highlight_atoms = list(set(highlight_atoms))
+    highlight_bonds = list(set(highlight_bonds))
+
+    drawer = rdMolDraw2D.MolDraw2DCairo(500, 500)
+    drawer.drawOptions().setBackgroundColour((1, 1, 1))  # white background
+    # Removed useBWAtomPalette() for full color rendering
+
+    rdMolDraw2D.PrepareAndDrawMolecule(
+        drawer,
+        molecule,
+        highlightAtoms=highlight_atoms,
+        highlightBonds=highlight_bonds,
+        highlightAtomColors=highlight_colors,
+        highlightBondColors=highlight_colors
+    )
+    drawer.FinishDrawing()
+    return drawer.GetDrawingText()
+
+
+def draw_top3_maccs_shap_highlights(molecule, shap_values_array, maccs_features, top_n_idx):
+    from rdkit.Chem.Draw import rdMolDraw2D
+
+    img_list = []
+    max_imgs = 3
+    selected_features = top_n_idx[:max_imgs]
+
+    # Normalize SHAP values
+    top_shap_values = shap_values_array[selected_features]
+    min_shap = top_shap_values.min()
+    max_shap = top_shap_values.max()
+    range_shap = max_shap - min_shap if max_shap != min_shap else 1.0
+
+    def get_intensity(value):
+        norm = (value - min_shap) / range_shap
+        return 0.1 + 0.65 * norm  # range [0.1, 0.75]
+
+    for feature in selected_features:
+        smarts = smartsPatts[feature][0]
+        substructure = Chem.MolFromSmarts(smarts)
+        if not substructure:
+            continue
+
+        match = molecule.GetSubstructMatch(substructure)
+        if not match:
+            continue
+
+        intensity = get_intensity(shap_values_array[feature])
+        color = (1.0, 1.0 - intensity, 1.0 - intensity)
+
+        highlight_atoms = list(match)
+        highlight_bonds = []
+        highlight_colors = {atom: color for atom in highlight_atoms}
+
+        for bond in molecule.GetBonds():
+            begin = bond.GetBeginAtomIdx()
+            end = bond.GetEndAtomIdx()
+            if begin in match and end in match:
+                idx = bond.GetIdx()
+                highlight_bonds.append(idx)
+                highlight_colors[idx] = color
+
+        drawer = rdMolDraw2D.MolDraw2DCairo(500, 500)
+        drawer.drawOptions().setBackgroundColour((1, 1, 1))
+        rdMolDraw2D.PrepareAndDrawMolecule(
+            drawer,
+            molecule,
+            highlightAtoms=highlight_atoms,
+            highlightBonds=highlight_bonds,
+            highlightAtomColors=highlight_colors,
+            highlightBondColors=highlight_colors
+        )
+        drawer.FinishDrawing()
+        img_list.append(drawer.GetDrawingText())
+
+    return img_list

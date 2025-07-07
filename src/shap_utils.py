@@ -50,7 +50,7 @@ def plot_waterfall_shap1(model, instance_array, background_df, feature_names):
         print(f"{f}: {v:.4f} ↑")
 
     # --- Plot full SHAP waterfall
-    #shap.plots.waterfall(shap_values[0], max_display=10)
+    shap.plots.waterfall(shap_values[0], max_display=10)
     return {
     "shap_values_array": shap_values_array,
     "sorted_idx": sorted_idx,
